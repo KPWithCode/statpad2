@@ -2,6 +2,7 @@ package main
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/KPWithCode/statpad2/routes"
 
 )
 
@@ -14,6 +15,10 @@ e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 	AllowCredentials: true, // Set to true if you want to allow credentials (cookies, HTTP authentication) to be included in the CORS request
 	MaxAge:           3600, // Max age of the CORS options preflight request in seconds
 }))
+
+	routes.AssistRoutes(e)
+	routes.GoalRoutes(e)
+	
 e.Logger.Fatal(e.Start(":8000"))
 
 }
