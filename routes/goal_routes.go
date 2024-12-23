@@ -8,5 +8,7 @@ import (
 func GoalRoutes(e *echo.Echo) {
 	// Define a route for processing goals
 	e.GET("/process-goals", handlers.ProcessGoalsHandler)
-	e.GET("process-goals-against", handlers.ProcessGoalsAgainstHandler)
+	e.GET("/process-goals-against", handlers.ProcessGoalsAgainstHandler)
+	e.GET("/process-goal-diff", handlers.ProcessGoalDifferentialHandler)
+	
 }
