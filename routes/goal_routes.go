@@ -10,5 +10,7 @@ func GoalRoutes(e *echo.Echo) {
 	e.GET("/process-goals", handlers.ProcessGoalsHandler)
 	e.GET("/process-goals-against", handlers.ProcessGoalsAgainstHandler)
 	e.GET("/process-goal-diff", handlers.ProcessGoalDifferentialHandler)
+	e.GET("/process-avgscoretime", handlers.ProcessTimeToScoreHandler)
+	e.GET("/process-shotstogoals", handlers.ProcessShotsToGoalHandler)
 	
 }
