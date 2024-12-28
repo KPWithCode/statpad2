@@ -17,6 +17,7 @@ e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 	MaxAge:           3600, // Max age of the CORS options preflight request in seconds
 }))
 
+	routes.UpcomingEvents(e)
 	routes.EventRoutes(e)
 	routes.AssistRoutes(e)
 	routes.GoalRoutes(e)
