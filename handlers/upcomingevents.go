@@ -11,31 +11,37 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Market represents the structure of each market's data
+type Outcome struct {
+	Name  string   `json:"name"`
+	Price float64  `json:"price"`
+	Point *float64 `json:"point,omitempty"`
+}
+
 type Market struct {
-	Key   string `json:"key"`
-	Title string `json:"title"`
-	Odds  struct {
-		Home  string `json:"home,omitempty"`
-		Away  string `json:"away,omitempty"`
-		Draw  string `json:"draw,omitempty"` // For markets like soccer
-	} `json:"odds"`
+	Key      string    `json:"key"`
+	Title    string    `json:"title"`
+	Outcomes []Outcome `json:"outcomes"`
 }
 
-// Event represents the structure of the event returned by the API
+type Bookmaker struct {
+	Key        string    `json:"key"`
+	Title      string    `json:"title"`
+	LastUpdate string    `json:"last_update"`
+	Markets    []Market  `json:"markets"`
+}
+
+// SportsEvent represents the structure of an event, including teams and associated bookmakers
 type SportsEvent struct {
-	ID           string    `json:"id"`
-	SportKey     string    `json:"sport_key"`
-	SportTitle   string    `json:"sport_title"`
-	CommenceTime string    `json:"commence_time"`
-	HomeTeam     string    `json:"home_team"`
-	AwayTeam     string    `json:"away_team"`
-	Markets      []Market  `json:"markets"`
+	ID           string      `json:"id"`
+	SportKey     string      `json:"sport_key"`
+	SportTitle   string      `json:"sport_title"`
+	CommenceTime string      `json:"commence_time"`
+	HomeTeam     string      `json:"home_team"`
+	AwayTeam     string      `json:"away_team"`
+	Bookmakers   []Bookmaker `json:"bookmakers"`
 }
 
-// GroupedEvents is the structure for grouping events by sport_key
 type GroupedEvents map[string][]SportsEvent
-
 
 // GetUpcomingSports fetches events for upcoming sports, including odds and markets
 func GetUpcomingSports(c echo.Context) error {
@@ -56,7 +62,7 @@ func GetUpcomingSports(c echo.Context) error {
 	// Construct the request URL
 	baseURL := "https://api.the-odds-api.com/v4/sports/upcoming/odds"
 	regions := "us"
-	markets := "h2h,spreads"
+	markets := "h2h,spreads,totals"
 	oddsFormat := "american"
 	url := fmt.Sprintf(
 		"%s/?apiKey=%s&regions=%s&markets=%s&oddsFormat=%s",
@@ -65,7 +71,6 @@ func GetUpcomingSports(c echo.Context) error {
 
 	// Make the API request
 	resp, err := http.Get(url)
-
 	if err != nil {
 		log.Printf("Error making API request: %v", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch events"})
@@ -85,10 +90,41 @@ func GetUpcomingSports(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to parse events"})
 	}
 
-	groupedEvents := make(GroupedEvents)
+	// Limit the events to the next 10 upcoming games
+	if len(events) > 10 {
+		events = events[:10]
+	}
+
+	// Filter out only the desired bookmakers
+	desiredBookmakers := map[string]bool{
+		"fanduel":   true,
+		"betmgm": true,
+		"draftkings": true,
+		"betrivers": true,
+		"bovada":    true,
+	}
+
+	// Filter events to only include relevant bookmakers and structure the data
+	var filteredEvents []SportsEvent
 	for _, event := range events {
+		var filteredBookmakers []Bookmaker
+		for _, bookmaker := range event.Bookmakers {
+			if desiredBookmakers[bookmaker.Key] {
+				filteredBookmakers = append(filteredBookmakers, bookmaker)
+			}
+		}
+		// Add event with filtered bookmakers
+		if len(filteredBookmakers) > 0 {
+			event.Bookmakers = filteredBookmakers
+			filteredEvents = append(filteredEvents, event)
+		}
+	}
+
+	// Group the events by sport title
+	groupedEvents := make(GroupedEvents)
+	for _, event := range filteredEvents {
 		groupedEvents[event.SportTitle] = append(groupedEvents[event.SportTitle], event)
 	}
-	// Return the events as JSON response
-	return c.JSON(http.StatusOK, events)
+
+	return c.JSON(http.StatusOK, groupedEvents)
 }
