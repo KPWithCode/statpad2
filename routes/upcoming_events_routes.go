@@ -6,7 +6,6 @@ import (
 )
 
 func UpcomingEvents(e *echo.Echo) {
-	// Define a route for processing goals
 	e.GET("/upcoming-events", handlers.GetUpcomingSports)
 	
 }
