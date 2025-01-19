@@ -6,17 +6,24 @@ import (
 )
 
 func NBARoutes(e *echo.Echo) {
-	// Define a route for processing goals
 	e.GET("/nba/upcoming", nbahandler.NBAGamesToday)
 	e.GET("/nba/upcoming2", nbahandler.GetNBADailyGames)
 	e.GET("/nba/fourfactor", nbahandler.FourFactorsHandler)
-	e.GET("/nba/gamestoday", nbahandler.GetNBADailyGames)
 	e.GET("/nba/pythagorean", nbahandler.PythagoreanHandler)
+	e.GET("/nba/trueshooting", nbahandler.TrueShootingHandler)
+
+
+
+
+
+
+
+
+
+
+	e.GET("/nba/positionaldef", nbahandler.PositionalDefenseHandler)
+	e.GET("/nba/gamestoday", nbahandler.GetNBADailyGames)
 	e.GET("/nba/mismatch", nbahandler.GetMismatchHandler)
-
-
-
-
 	e.GET("/nba/powerrankings", nbahandler.TeamPowerMetric)
 	e.GET("/nba/teamscatterplot", nbahandler.TeamScatterEfficiencyHandler)
 	e.GET("/nba/offdefofficiency",nbahandler.RelativeEfficiencyHandler)
