@@ -26,12 +26,12 @@ type TeamMyFeedStatsEntry struct {
 
 // TeamInfo represents basic team information
 type TeamInfo struct {
-	ID            int           `json:"id"`
-	City          string        `json:"city"`
-	Name          string        `json:"name"`
-	Abbreviation  string        `json:"abbreviation"`
-	HomeVenue     Venue         `json:"homeVenue"`
-	SocialMedia   []SocialMedia `json:"socialMediaAccounts"`
+	ID           int           `json:"id"`
+	City         string        `json:"city"`
+	Name         string        `json:"name"`
+	Abbreviation string        `json:"abbreviation"`
+	HomeVenue    Venue         `json:"homeVenue"`
+	SocialMedia  []SocialMedia `json:"socialMediaAccounts"`
 }
 
 type Venue struct {
@@ -56,21 +56,21 @@ type Stats struct {
 }
 
 type FieldGoals struct {
-	FGMade                  float64 `json:"fgMade"`
-	FGAtt                   float64 `json:"fgAtt"`
-	FGPct                   float64 `json:"fgPct"`
-	FG2PtMade              float64 `json:"fg2PtMade"`
-	FG2PtAtt               float64 `json:"fg2PtAtt"`
-	FG2PtPct               float64 `json:"fg2PtPct"`
-	FG3PtMade              float64 `json:"fg3PtMade"`
-	FG3PtAtt               float64 `json:"fg3PtAtt"`
-	FG3PtPct               float64 `json:"fg3PtPct"`
-	FGMadePerGame          float64 `json:"fgMadePerGame"`
-	FGAttPerGame           float64 `json:"fgAttPerGame"`
-	FG2PtMadePerGame       float64 `json:"fg2PtMadePerGame"`
-	FG2PtAttPerGame        float64 `json:"fg2PtAttPerGame"`
-	FG3PtMadePerGame       float64 `json:"fg3PtMadePerGame"`
-	FG3PtAttPerGame        float64 `json:"fg3PtAttPerGame"`
+	FGMade           float64 `json:"fgMade"`
+	FGAtt            float64 `json:"fgAtt"`
+	FGPct            float64 `json:"fgPct"`
+	FG2PtMade        float64 `json:"fg2PtMade"`
+	FG2PtAtt         float64 `json:"fg2PtAtt"`
+	FG2PtPct         float64 `json:"fg2PtPct"`
+	FG3PtMade        float64 `json:"fg3PtMade"`
+	FG3PtAtt         float64 `json:"fg3PtAtt"`
+	FG3PtPct         float64 `json:"fg3PtPct"`
+	FGMadePerGame    float64 `json:"fgMadePerGame"`
+	FGAttPerGame     float64 `json:"fgAttPerGame"`
+	FG2PtMadePerGame float64 `json:"fg2PtMadePerGame"`
+	FG2PtAttPerGame  float64 `json:"fg2PtAttPerGame"`
+	FG3PtMadePerGame float64 `json:"fg3PtMadePerGame"`
+	FG3PtAttPerGame  float64 `json:"fg3PtAttPerGame"`
 }
 
 type FreeThrows struct {
@@ -82,52 +82,52 @@ type FreeThrows struct {
 }
 
 type Rebounds struct {
-	OffReb         float64 `json:"offReb"`
-	DefReb         float64 `json:"defReb"`
-	Reb            float64 `json:"reb"`
-	OffRebPerGame  float64 `json:"offRebPerGame"`
-	DefRebPerGame  float64 `json:"defRebPerGame"`
-	RebPerGame     float64 `json:"rebPerGame"`
+	OffReb        float64 `json:"offReb"`
+	DefReb        float64 `json:"defReb"`
+	Reb           float64 `json:"reb"`
+	OffRebPerGame float64 `json:"offRebPerGame"`
+	DefRebPerGame float64 `json:"defRebPerGame"`
+	RebPerGame    float64 `json:"rebPerGame"`
 }
 
 type Offense struct {
-	Pts          float64 `json:"pts"`
-	PtsPerGame   float64 `json:"ptsPerGame"`
-	Ast          float64 `json:"ast"`
-	AstPerGame   float64 `json:"astPerGame"`
+	Pts        float64 `json:"pts"`
+	PtsPerGame float64 `json:"ptsPerGame"`
+	Ast        float64 `json:"ast"`
+	AstPerGame float64 `json:"astPerGame"`
 }
 
 type Defense struct {
-	TOV                float64 `json:"tov"`
-	TOVPerGame         float64 `json:"tovPerGame"`
-	STL                float64 `json:"stl"`
-	STLPerGame         float64 `json:"stlPerGame"`
-	BLK                float64 `json:"blk"`
-	BLKPerGame         float64 `json:"blkPerGame"`
-	BLKAgainst         float64 `json:"blkAgainst"`
-	BLKAgainstPerGame  float64 `json:"blkAgainstPerGame"`
-	PtsAgainst         float64 `json:"ptsAgainst"`
-	PtsAgainstPerGame  float64 `json:"ptsAgainstPerGame"`
+	TOV               float64 `json:"tov"`
+	TOVPerGame        float64 `json:"tovPerGame"`
+	STL               float64 `json:"stl"`
+	STLPerGame        float64 `json:"stlPerGame"`
+	BLK               float64 `json:"blk"`
+	BLKPerGame        float64 `json:"blkPerGame"`
+	BLKAgainst        float64 `json:"blkAgainst"`
+	BLKAgainstPerGame float64 `json:"blkAgainstPerGame"`
+	PtsAgainst        float64 `json:"ptsAgainst"`
+	PtsAgainstPerGame float64 `json:"ptsAgainstPerGame"`
 }
 
 type Miscellaneous struct {
-	Fouls              float64 `json:"fouls"`
-	FoulsPerGame       float64 `json:"foulsPerGame"`
-	FoulsDrawn         float64 `json:"foulsDrawn"`
-	FoulsDrawnPerGame  float64 `json:"foulsDrawnPerGame"`
-	FoulPers           float64 `json:"foulPers"`
-	FoulPersPerGame    float64 `json:"foulPersPerGame"`
-	FoulTech           float64 `json:"foulTech"`
-	FoulTechPerGame    float64 `json:"foulTechPerGame"`
-	PlusMinus          float64 `json:"plusMinus"`
-	PlusMinusPerGame   float64 `json:"plusMinusPerGame"`
+	Fouls             float64 `json:"fouls"`
+	FoulsPerGame      float64 `json:"foulsPerGame"`
+	FoulsDrawn        float64 `json:"foulsDrawn"`
+	FoulsDrawnPerGame float64 `json:"foulsDrawnPerGame"`
+	FoulPers          float64 `json:"foulPers"`
+	FoulPersPerGame   float64 `json:"foulPersPerGame"`
+	FoulTech          float64 `json:"foulTech"`
+	FoulTechPerGame   float64 `json:"foulTechPerGame"`
+	PlusMinus         float64 `json:"plusMinus"`
+	PlusMinusPerGame  float64 `json:"plusMinusPerGame"`
 }
 
 type Standings struct {
-	Wins       float64 `json:"wins"`
-	Losses     float64 `json:"losses"`
-	WinPct     float64 `json:"winPct"`
-	GamesBack  float64 `json:"gamesBack"`
+	Wins      float64 `json:"wins"`
+	Losses    float64 `json:"losses"`
+	WinPct    float64 `json:"winPct"`
+	GamesBack float64 `json:"gamesBack"`
 }
 
 // FourFactorsTeam represents the four factors analysis for a team
@@ -137,9 +137,8 @@ type FourFactorsTeam struct {
 	TORate        float64 `json:"turnoverRate"`
 	ORBRate       float64 `json:"offensiveReboundRate"`
 	FTRate        float64 `json:"freeThrowRate"`
-	OverallRate	  float64 `json:"overallRate"`
+	OverallRate   float64 `json:"overallRate"`
 }
-
 
 func loadEnvVars() error {
 	err := godotenv.Load()
@@ -148,7 +147,6 @@ func loadEnvVars() error {
 	}
 	return nil
 }
-
 
 func fetchTeamStats() ([]TeamMyFeedStatsEntry, error) {
 	// Load environment variables
@@ -245,7 +243,7 @@ func FourFactorsHandler(c echo.Context) error {
 			FTRate = (entry.Stats.FreeThrows.FTAtt / entry.Stats.FieldGoals.FGAtt) * 100
 		}
 
-overallScore := (eFGPercentage + (100 - TORate) + ORBRate + FTRate) / 4.0
+		overallScore := (eFGPercentage + (100 - TORate) + ORBRate + FTRate) / 4.0
 
 		results = append(results, FourFactorsTeam{
 			Team:          fmt.Sprintf("%s %s", entry.Team.City, entry.Team.Name),
