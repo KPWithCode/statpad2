@@ -132,7 +132,7 @@ func TrueShootingHandler(c echo.Context) error {
 				FG2PtPct: team.Stats.FieldGoals.FG2PtPct,
 				FG3PtPct: team.Stats.FieldGoals.FG3PtPct,
 			},
-			TSPercentage: tsPercentage,
+			TSPercentage: roundToTwoDecimals(tsPercentage),
 		}
 	}
 
