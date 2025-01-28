@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,7 +14,47 @@ import (
 )
 
 
+func getLeagueWideEPMRankings() (map[string][]float64, error) {
+    allTeams := []string{"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW", 
+                        "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK", 
+                        "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS"}
+    
+    // Get EPM data for all teams
+    epmData, err := getEPMCheatSheet(allTeams)
+    if err != nil {
+        return nil, err
+    }
 
+    // Collect all EPM values by position group
+    leagueEPM := map[string][]float64{
+        "Backcourt":  make([]float64, 0, len(allTeams)),
+        "Frontcourt": make([]float64, 0, len(allTeams)),
+    }
+
+    // Collect values separately for each group
+    for _, team := range allTeams {
+        if teamData, exists := epmData[team]; exists {
+            leagueEPM["Backcourt"] = append(leagueEPM["Backcourt"], teamData["Backcourt"])
+            leagueEPM["Frontcourt"] = append(leagueEPM["Frontcourt"], teamData["Frontcourt"])
+        }
+    }
+
+    // Sort EPM values in descending order for each group separately
+    for group := range leagueEPM {
+        sort.Sort(sort.Reverse(sort.Float64Slice(leagueEPM[group])))
+    }
+
+    return leagueEPM, nil
+}
+
+func getEPMRank(value float64, sortedValues []float64) int {
+    for i, v := range sortedValues {
+        if value >= v {
+            return i + 1
+        }
+    }
+    return len(sortedValues) + 1  // Return length + 1 if value is lower than all others
+}
 func getEPMCheatSheet(teams []string) (map[string]map[string]float64, error) {
     apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
     if apiKey == "" {
@@ -127,8 +168,56 @@ func contains(slice []string, val string) bool {
     return false
 }
 
+func getEpmGameSchedule() ([]string, error) {
+    schedule, err := fetchTodaysSchedule()
+    if err != nil {
+        return nil, err
+    }
+
+    // Extract teams from the schedule
+    // var teams []string
+    // for _, game := range schedule {
+    //     teams = append(teams, game.HomeTeam, game.AwayTeam)
+    // }
+
+    return schedule, nil
+}
+
+
+func groupByMatchup(teams []string, epmData map[string]map[string]float64, leagueEPM map[string][]float64) map[string]map[string]interface{} {
+    matchups := make(map[string]map[string]interface{})
+
+    for i := 0; i < len(teams); i += 2 {
+        homeTeam := teams[i]
+        awayTeam := teams[i+1]
+        matchup := fmt.Sprintf("%s vs %s", homeTeam, awayTeam)
+
+        homeEPM := epmData[homeTeam]
+        awayEPM := epmData[awayTeam]
+
+        // Calculate rankings using respective sorted values
+        homeBackcourtRank := getEPMRank(homeEPM["Backcourt"], leagueEPM["Backcourt"])
+        awayBackcourtRank := getEPMRank(awayEPM["Backcourt"], leagueEPM["Backcourt"])
+        homeFrontcourtRank := getEPMRank(homeEPM["Frontcourt"], leagueEPM["Frontcourt"])
+        awayFrontcourtRank := getEPMRank(awayEPM["Frontcourt"], leagueEPM["Frontcourt"])
+
+        matchups[matchup] = map[string]interface{}{
+            "HomeBackcourt":        homeEPM["Backcourt"],
+            "HomeFrontcourt":       homeEPM["Frontcourt"],
+            "AwayBackcourt":        awayEPM["Backcourt"],
+            "AwayFrontcourt":       awayEPM["Frontcourt"],
+            "HomeBackcourtRank":    homeBackcourtRank,
+            "AwayBackcourtRank":    awayBackcourtRank,
+            "HomeFrontcourtRank":   homeFrontcourtRank,
+            "AwayFrontcourtRank":   awayFrontcourtRank,
+        }
+    }
+
+    return matchups
+}
+
 func EPMHandler(c echo.Context) error {
-    teams, err := getTodaysGameSchedule()
+    teams, err := getEpmGameSchedule()
     if err != nil {
         return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
     }
@@ -137,6 +226,13 @@ func EPMHandler(c echo.Context) error {
     if err != nil {
         return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
     }
+	leagueEPM, err := getLeagueWideEPMRankings()
+    if err != nil {
+        return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+    }
 
-    return c.JSON(http.StatusOK, epmCheatSheet)
+
+	matchups := groupByMatchup(teams, epmCheatSheet, leagueEPM)
+	time.Sleep(1 * time.Second) 
+    return c.JSON(http.StatusOK, matchups)
 }
