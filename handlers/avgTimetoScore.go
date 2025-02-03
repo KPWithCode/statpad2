@@ -22,7 +22,7 @@ type TimeToScoreStats struct {
 
 // current season data
 func ProcessTimeToScoreHandler(c echo.Context) error {
-	file, err := os.Open("data/shots_2024.csv")
+	file, err := os.Open("data/shotsfeb1.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
