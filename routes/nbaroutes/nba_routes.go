@@ -9,14 +9,12 @@ func NBARoutes(e *echo.Echo) {
 	e.GET("/nba/fourfactor", nbahandler.FourFactorsHandler)
 	e.GET("/nba/pythagorean", nbahandler.PythagoreanHandler)
 	e.GET("/nba/trueshooting", nbahandler.TrueShootingHandler)
-	e.GET("/nba/bayesian", nbahandler.BayesianMatchupHandler)
 	e.GET("/nba/epm", nbahandler.EPMHandler)
-	// e.GET("/nba/playertrends", nbahandler.PlayerTrendsHandler)
+	e.GET("/nba/blowoutindicator", nbahandler.BlowoutPredictorHandler)
 	
-	
+	e.GET("/nba/bayesian", nbahandler.BayesianMatchupHandler)
 	e.GET("/nba/matchupcheatsheet", nbahandler.PlayerMatchupHandler)
 	
-	// e.GET("/nba/upcoming", nbahandler.NBAGamesToday)
 
 
 
