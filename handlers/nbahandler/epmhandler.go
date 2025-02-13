@@ -13,6 +13,76 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+func fetchTodaysScheduleII() ([]string, error) {
+    if err := loadPDEnvVars(); err != nil {
+        return nil, fmt.Errorf("error loading environment variables: %v", err)
+    }
+
+    apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+    if apiKey == "" {
+        return nil, fmt.Errorf("API key not found in environment variables")
+    }
+
+    today := time.Now().Format("20060102") 
+    season := "2024-2025-regular"
+    endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/%s/games.json?date=%s", season, today)
+
+    req, err := http.NewRequest("GET", endpoint, nil)
+    if err != nil {
+        return nil, fmt.Errorf("error creating request: %v", err)
+    }
+
+    req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
+
+    client := &http.Client{Timeout: 10 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("error making request: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode == http.StatusNoContent {
+        return nil, fmt.Errorf("no games scheduled for today")
+    }
+
+    if resp.StatusCode != http.StatusOK {
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("API returned non-200 status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+    }
+
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("error reading response: %v", err)
+    }
+
+    var response struct {
+        Games []struct {
+            Schedule struct {
+                AwayTeam struct {
+                    Abbreviation string `json:"abbreviation"`
+                } `json:"awayTeam"`
+                HomeTeam struct {
+                    Abbreviation string `json:"abbreviation"`
+                } `json:"homeTeam"`
+            } `json:"schedule"`
+        } `json:"games"`
+    }
+
+    if err := json.Unmarshal(body, &response); err != nil {
+        preview := string(body)
+        if len(preview) > 100 {
+            preview = preview[:100] + "..."
+        }
+        return nil, fmt.Errorf("error parsing JSON: %v, body preview: %s", err, preview)
+    }
+
+    var teams []string
+    for _, game := range response.Games {
+        teams = append(teams, game.Schedule.AwayTeam.Abbreviation, game.Schedule.HomeTeam.Abbreviation)
+    }
+    return teams, nil
+}
+
 
 func getLeagueWideEPMRankings() (map[string][]float64, error) {
     allTeams := []string{"ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW", 
@@ -169,7 +239,7 @@ func contains(slice []string, val string) bool {
 }
 
 func getEpmGameSchedule() ([]string, error) {
-    schedule, err := fetchTodaysSchedule()
+    schedule, err := fetchTodaysScheduleII()
     if err != nil {
         return nil, err
     }
