@@ -18,7 +18,7 @@ type ShotsToGoalStats struct {
 	ConversionRate     float64 `json:"conversion_rate"`
 }
 func ProcessShotsToGoalHandler(c echo.Context) error {
-	file, err := os.Open("data/shotsfeb1.csv")
+	file, err := os.Open("data/feb21shots.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
@@ -37,30 +37,40 @@ func ProcessShotsToGoalHandler(c echo.Context) error {
 	columns := records[0]
 	eventIdx := findColumnIndex(columns, "event")
 	teamIdx := findColumnIndex(columns, "teamCode")
+	seasonIdx := findColumnIndex(columns, "season")
 
-	if eventIdx == -1 || teamIdx == -1 {
+	if eventIdx == -1 || teamIdx == -1 || seasonIdx == -1 {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "CSV does not contain required columns"})
 	}
+
+	// Define the current season
+	currentSeason := "2024"
 
 	stats := make(map[string]*ShotsToGoalStats)
 
 	for _, record := range records[1:] {
-		event := record[eventIdx]
+		season := record[seasonIdx]
+		if season != currentSeason {
+			continue // Skip records that are not from the current season
+		}
+
+		event := strings.ToLower(record[eventIdx])
 		team := record[teamIdx]
 
 		if _, ok := stats[team]; !ok {
 			stats[team] = &ShotsToGoalStats{Team: team}
 		}
 
-		if strings.ToLower(event) == "goal" {
+		if event == "goal" {
 			stats[team].Goals++
 		}
 
-		if strings.ToLower(event) == "shot" || strings.ToLower(event) == "goal" {
+		if event == "shot" || event == "goal" {
 			stats[team].Shots++
 		}
 	}
 
+	// Calculate conversion rates
 	for _, stat := range stats {
 		if stat.Shots > 0 {
 			stat.ConversionRate = float64(stat.Goals) / float64(stat.Shots)

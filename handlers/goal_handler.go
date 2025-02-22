@@ -17,7 +17,13 @@ type GoalsStats struct {
 }
 
 func ProcessGoalsHandler(c echo.Context) error {
-	file, err := os.Open("data/shots_2024.csv")
+
+	filePath := c.QueryParam("filePath")
+	if filePath == "" {
+		filePath = "data/feb21shots.csv"
+	}
+
+	file, err := os.Open(filePath)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
