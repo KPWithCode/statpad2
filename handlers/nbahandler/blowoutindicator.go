@@ -53,7 +53,6 @@ type BlowoutPrediction struct {
 	Factors            struct {
 		NetRating     float64 `json:"netRating"`
 		PythWinPct    float64 `json:"pythWinPct"`
-		HomeAdvantage float64 `json:"homeAdvantage"`
 	} `json:"factors"`
 }
 
@@ -107,11 +106,9 @@ func calculateBlowoutProbability(homeTeam, awayTeam BITeamStats) BlowoutPredicti
 	awayPythWinPct := calculatePythagoreanWinPctBI(awayTeam.Stats.Offense.PtsPerGame, awayTeam.Stats.Defense.PtsAgainstPerGame)
 	pythWinPctDiff := homePythWinPct - awayPythWinPct
 
-	// Home court advantage (approximately 3 points in NBA)
-	homeAdvantage := 3.0
 
 	// Combine factors to predict margin
-	predictedMargin := (netRatingDiff * 0.4) + (pythWinPctDiff * 15.0) + homeAdvantage
+	predictedMargin := (netRatingDiff * 0.4) + (pythWinPctDiff * 15.0)
 
 	// Create the prediction object
 	prediction := BlowoutPrediction{
@@ -129,12 +126,11 @@ func calculateBlowoutProbability(homeTeam, awayTeam BITeamStats) BlowoutPredicti
 	}
 
 	// Calculate probability of blowout (14+ point margin)
-	blowoutThreshold := 14.0
+	blowoutThreshold := 16.0
 	prediction.BlowoutProbability = 1.0 / (1.0 + math.Exp(-0.2*(prediction.PredictedMargin-blowoutThreshold)))
 
 	prediction.Factors.NetRating = netRatingDiff
 	prediction.Factors.PythWinPct = pythWinPctDiff
-	prediction.Factors.HomeAdvantage = homeAdvantage
 
 	return prediction
 }
