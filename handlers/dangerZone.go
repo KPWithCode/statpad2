@@ -16,7 +16,9 @@ type DangerZoneStats struct {
 	Team                   string  `json:"team"`
 	TotalShotsAllowed      int     `json:"total_shots_allowed"`
 	DangerZoneShotsAllowed int     `json:"danger_zone_shots_allowed"`
+	DangerZoneBlocked        int     `json:"danger_zone_blocked"`
 	DangerZonePercentage   float64 `json:"danger_zone_percentage"`
+	AdjustedDangerPercentage float64 `json:"adjusted_danger_percentage"`
     Rank                   int     `json:"rank"`
 }
 
@@ -66,6 +68,7 @@ func ProcessDangerZone(c echo.Context) error {
 		}
 
         shotType := strings.ToLower(record[shotTypeIdx]) // Normalize for case insensitivity
+		isBlocked := shotType == "blocked"
 
 		// Consider only deflections, tips, rebounds, and regular shots
 		if !(shotType == "shot" || shotType == "deflection" || shotType == "tip" || shotType == "rebound" || shotType == "wrist" || shotType == "snap" || shotType == "slap" || shotType == "back") {
@@ -76,7 +79,9 @@ func ProcessDangerZone(c echo.Context) error {
 		if _, exists := stats[team]; !exists {
 			stats[team] = &DangerZoneStats{Team: team}
 		}
-
+		if !isBlocked {
+            stats[team].TotalShotsAllowed++
+        }
 		stats[team].TotalShotsAllowed++
 
 		// Danger zone: distance <= 10 or angle between 30-60
@@ -86,7 +91,7 @@ func ProcessDangerZone(c echo.Context) error {
         isDangerZone := false
 		
 		switch {
-		case shotDistance <= 20:
+		case shotDistance <= 20 && math.Abs(shotAngle) <= 45:
 			// Inner slot area - highest danger
 			isDangerZone = true
 		case shotDistance <= 30 && math.Abs(shotAngle) <= 35:
@@ -97,19 +102,41 @@ func ProcessDangerZone(c echo.Context) error {
 			isDangerZone = true
 		}
 
+		// if isDangerZone {
+		// 	stats[team].DangerZoneShotsAllowed++
+		// }
 		if isDangerZone {
-			stats[team].DangerZoneShotsAllowed++
-		}
+            if isBlocked {
+                stats[team].DangerZoneBlocked++
+            } else {
+                stats[team].DangerZoneShotsAllowed++
+            }
+        }
 	}
 
     var statsList []*DangerZoneStats
 	// Compute percentages
+	// for _, stat := range stats {
+	// 	if stat.TotalShotsAllowed > 0 {
+	// 		stat.DangerZonePercentage = (float64(stat.DangerZoneShotsAllowed) / float64(stat.TotalShotsAllowed)) * 100
+	// 	}
+    //     statsList = append(statsList, stat)
+	// }
 	for _, stat := range stats {
-		if stat.TotalShotsAllowed > 0 {
-			stat.DangerZonePercentage = (float64(stat.DangerZoneShotsAllowed) / float64(stat.TotalShotsAllowed)) * 100
-		}
+        if stat.TotalShotsAllowed > 0 {
+            // Regular danger zone percentage
+            stat.DangerZonePercentage = (float64(stat.DangerZoneShotsAllowed) / float64(stat.TotalShotsAllowed)) * 100
+            
+            // Adjusted percentage that rewards shot blocking
+            totalDangerAttempts := float64(stat.DangerZoneShotsAllowed + stat.DangerZoneBlocked)
+            if totalDangerAttempts > 0 {
+                blockEffectiveness := float64(stat.DangerZoneBlocked) / totalDangerAttempts
+                // Reduce danger percentage based on blocking effectiveness
+                stat.AdjustedDangerPercentage = stat.DangerZonePercentage * (1 - (blockEffectiveness * 0.5))
+            }
+        }
         statsList = append(statsList, stat)
-	}
+    }
     // Sort by DangerZonePercentage in descending order (higher % ranks higher)
 	sort.Slice(statsList, func(i, j int) bool {
 		return statsList[i].DangerZonePercentage > statsList[j].DangerZonePercentage
