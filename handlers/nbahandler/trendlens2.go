@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -85,68 +86,143 @@ func NewRateLimitedClient(apiKey string) *RateLimitedClient {
 		minuteStart:     time.Now(),
 	}
 }
-
 func (c *RateLimitedClient) DoRequest(endpoint string, backoffSeconds int) ([]byte, error) {
-	c.mu.Lock()
+    c.mu.Lock()
 
-	// Check if we need to reset the minute counter
-	now := time.Now()
-	if now.Sub(c.minuteStart) >= time.Minute {
-		c.requestCount = 0
-		c.minuteStart = now
-	}
+    // Check if we need to reset the minute counter
+    now := time.Now()
+    if now.Sub(c.minuteStart) >= time.Minute {
+        c.requestCount = 0
+        c.minuteStart = now
+    }
 
-	// Calculate new request cost (1 + backoff seconds)
-	newCost := 1 + backoffSeconds
+    // Add extra buffer to backoff
+    actualBackoff := backoffSeconds + 1
 
-	// Check if this would exceed our per-minute limit
-	if c.requestCount+newCost > 100 {
-		c.mu.Unlock()
-		return nil, fmt.Errorf("rate limit would be exceeded (current count: %d, new cost: %d)",
-			c.requestCount, newCost)
-	}
+    // Calculate new request cost (1 + backoff seconds)
+    newCost := 1 + actualBackoff
 
-	// Check if we need to wait for backoff
-	if backoffSeconds > 0 {
-		if lastRequest, exists := c.lastRequestTime[endpoint]; exists {
-			timeSinceLastRequest := now.Sub(lastRequest)
-			if timeSinceLastRequest < time.Duration(backoffSeconds)*time.Second {
-				waitTime := time.Duration(backoffSeconds)*time.Second - timeSinceLastRequest
-				c.mu.Unlock()
-				time.Sleep(waitTime)
-				c.mu.Lock()
-			}
-		}
-	}
+    // More conservative limit
+    if c.requestCount+newCost > 90 { // Lowered from 100 to give some buffer
+        c.mu.Unlock()
+        return nil, fmt.Errorf("rate limit would be exceeded (current count: %d, new cost: %d)",
+            c.requestCount, newCost)
+    }
 
-	// Update counters and timestamps
-	c.requestCount += newCost
-	c.lastRequestTime[endpoint] = time.Now()
-	c.mu.Unlock()
+    // Always wait a minimum time between requests
+    minWaitTime := 2 * time.Second
+    if lastRequest, exists := c.lastRequestTime[endpoint]; exists {
+        timeSinceLastRequest := now.Sub(lastRequest)
+        if timeSinceLastRequest < minWaitTime {
+            waitTime := minWaitTime - timeSinceLastRequest
+            c.mu.Unlock()
+            time.Sleep(waitTime)
+            c.mu.Lock()
+        }
+    }
 
-	// Make the actual request
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
+    // Additional backoff if specified
+    if actualBackoff > 0 {
+        if lastRequest, exists := c.lastRequestTime[endpoint]; exists {
+            timeSinceLastRequest := now.Sub(lastRequest)
+            if timeSinceLastRequest < time.Duration(actualBackoff)*time.Second {
+                waitTime := time.Duration(actualBackoff)*time.Second - timeSinceLastRequest
+                c.mu.Unlock()
+                time.Sleep(waitTime)
+                c.mu.Lock()
+            }
+        }
+    }
 
-	req.SetBasicAuth(c.apiKey, "MYSPORTSFEEDS")
+    // Update counters and timestamps
+    c.requestCount += newCost
+    c.lastRequestTime[endpoint] = time.Now()
+    c.mu.Unlock()
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
+    // Make the actual request with longer timeout
+    req, err := http.NewRequest("GET", endpoint, nil)
+    if err != nil {
+        return nil, fmt.Errorf("error creating request: %v", err)
+    }
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned non-200 status code: %d, body: %s",
-			resp.StatusCode, string(bodyBytes))
-	}
+    req.SetBasicAuth(c.apiKey, "MYSPORTSFEEDS")
 
-	return io.ReadAll(resp.Body)
+    client := &http.Client{Timeout: 45 * time.Second} // Increased timeout
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("error making request: %v", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("API returned non-200 status code: %d, body: %s",
+            resp.StatusCode, string(bodyBytes))
+    }
+
+    return io.ReadAll(resp.Body)
 }
+// func (c *RateLimitedClient) DoRequest(endpoint string, backoffSeconds int) ([]byte, error) {
+// 	c.mu.Lock()
+
+// 	// Check if we need to reset the minute counter
+// 	now := time.Now()
+// 	if now.Sub(c.minuteStart) >= time.Minute {
+// 		c.requestCount = 0
+// 		c.minuteStart = now
+// 	}
+
+// 	// Calculate new request cost (1 + backoff seconds)
+// 	newCost := 1 + backoffSeconds
+
+// 	// Check if this would exceed our per-minute limit
+// 	if c.requestCount+newCost > 100 {
+// 		c.mu.Unlock()
+// 		return nil, fmt.Errorf("rate limit would be exceeded (current count: %d, new cost: %d)",
+// 			c.requestCount, newCost)
+// 	}
+
+// 	// Check if we need to wait for backoff
+// 	if backoffSeconds > 0 {
+// 		if lastRequest, exists := c.lastRequestTime[endpoint]; exists {
+// 			timeSinceLastRequest := now.Sub(lastRequest)
+// 			if timeSinceLastRequest < time.Duration(backoffSeconds)*time.Second {
+// 				waitTime := time.Duration(backoffSeconds)*time.Second - timeSinceLastRequest
+// 				c.mu.Unlock()
+// 				time.Sleep(waitTime)
+// 				c.mu.Lock()
+// 			}
+// 		}
+// 	}
+
+// 	// Update counters and timestamps
+// 	c.requestCount += newCost
+// 	c.lastRequestTime[endpoint] = time.Now()
+// 	c.mu.Unlock()
+
+// 	// Make the actual request
+// 	req, err := http.NewRequest("GET", endpoint, nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error creating request: %v", err)
+// 	}
+
+// 	req.SetBasicAuth(c.apiKey, "MYSPORTSFEEDS")
+
+// 	client := &http.Client{Timeout: 30 * time.Second}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error making request: %v", err)
+// 	}
+// 	defer resp.Body.Close()
+
+// 	if resp.StatusCode != http.StatusOK {
+// 		bodyBytes, _ := io.ReadAll(resp.Body)
+// 		return nil, fmt.Errorf("API returned non-200 status code: %d, body: %s",
+// 			resp.StatusCode, string(bodyBytes))
+// 	}
+
+// 	return io.ReadAll(resp.Body)
+// }
 
 func fetchTodaysScheduleIII() ([]string, error) {
 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
@@ -156,8 +232,8 @@ func fetchTodaysScheduleIII() ([]string, error) {
 
 	client := NewRateLimitedClient(apiKey)
 
-	yesterday := time.Now().AddDate(0, 0, -1).Format("20060102")
-	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/games.json?date=%s", yesterday)
+	today := time.Now().AddDate(0, 0, 0).Format("20060102")
+	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/games.json?date=%s", today)
 
 	// Games endpoint doesn't require backoff
 	data, err := client.DoRequest(endpoint, 0)
@@ -191,6 +267,7 @@ func fetchTodaysScheduleIII() ([]string, error) {
 }
 
 func TrendLensHandler(c echo.Context) error {
+
 	// Get today's games
 	schedule, err := fetchTodaysScheduleIII()
 	if err != nil {
@@ -198,7 +275,7 @@ func TrendLensHandler(c echo.Context) error {
 			"error": fmt.Sprintf("Error fetching schedule: %v", err),
 		})
 	}
-
+	time.Sleep(6 * time.Second)
 	// Create unique team list and join with commas
 	teamsMap := make(map[string]bool)
 	for _, team := range schedule {
@@ -222,7 +299,7 @@ func TrendLensHandler(c echo.Context) error {
 			"error": fmt.Sprintf("Error fetching player stats: %v", err),
 		})
 	}
-
+	time.Sleep(6 * time.Second)
 	currentStats, err := fetchCurrentTLStats(teamsList)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{
@@ -322,13 +399,16 @@ func TrendLensHandler(c echo.Context) error {
             "plusMinus":        stats.Stats.Miscellaneous.PlusMinus,
             "plusMinusPerGame": stats.Stats.Miscellaneous.PlusMinusPerGame,
             "lastUpdated":      time.Now().Format(time.RFC3339),
-            "simplifiedPER":    simplifiedPER,
-            "tsPct":            tsPct,
-            "eFGPct":           eFGPct,
+            "simplifiedPER":    roundToOneDecimal(simplifiedPER),
+            "tsPct":            roundToOneDecimal(tsPct),
+            "eFGPct":           roundToOneDecimal(eFGPct),
         }
 
         // Add recent period stats if they exist
         if recentStats.Stats.GamesPlayed > 0 {
+			roundToOneDecimal := func(val float64) float64 {
+				return math.Round(val*10) / 10
+			}
             recentStatsMap := map[string]interface{}{
                 "recentGamesPlayed":      recentStats.Stats.GamesPlayed,
                 "recentPoints":           recentStats.Stats.Offense.Pts,
@@ -342,10 +422,10 @@ func TrendLensHandler(c echo.Context) error {
                 "recentTovPerGame":       recentStats.Stats.Defense.TovPerGame,
                 "recentFg3ptPct":         recentStats.Stats.FieldGoals.Fg3PtPct,
                 "recentPlusMinus":        recentStats.Stats.Miscellaneous.PlusMinus,
-                "recentPlusMinusPerGame": recentStats.Stats.Miscellaneous.PlusMinusPerGame,
-                "recentSimplifiedPER":    recentMetrics["simplifiedPER"],
-                "recentTsPct":            recentMetrics["tsPct"],
-                "recentEFGPct":           recentMetrics["eFGPct"],
+                "recentPlusMinusPerGame": roundToOneDecimal(recentStats.Stats.Miscellaneous.PlusMinusPerGame),
+                "recentSimplifiedPER":    roundToOneDecimal(recentMetrics["simplifiedPER"]),
+                "recentTsPct":            roundToOneDecimal(recentMetrics["tsPct"]),
+                "recentEFGPct":           roundToOneDecimal(recentMetrics["eFGPct"]),
             }
             
             // Merge recent stats into batch body
@@ -408,82 +488,136 @@ func TrendLensHandler(c echo.Context) error {
 	})
 }
 
+// func fetchTLStats(lastMonth, today, teamsList string) (*TLPlayerStatsResponse, error) {
+// 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+// 	if apiKey == "" {
+// 		return nil, fmt.Errorf("MySportsFeeds API key not found")
+// 	}
+
+// 	endpoint := fmt.Sprintf(
+// 		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?date=%s-%s&team=%s",
+// 		lastMonth,
+// 		today,
+// 		teamsList,
+// 	)
+
+// 	req, err := http.NewRequest("GET", endpoint, nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error creating request: %v", err)
+// 	}
+
+// 	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
+
+// 	client := &http.Client{Timeout: 10 * time.Second}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error making request: %v", err)
+// 	}
+// 	defer resp.Body.Close()
+
+// 	body, err := io.ReadAll(resp.Body)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error reading response: %v", err)
+// 	}
+
+// 	var response TLPlayerStatsResponse
+// 	if err := json.Unmarshal(body, &response); err != nil {
+// 		return nil, fmt.Errorf("error parsing JSON: %v", err)
+// 	}
+
+// 	return &response, nil
+// }
 func fetchTLStats(lastMonth, today, teamsList string) (*TLPlayerStatsResponse, error) {
-	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("MySportsFeeds API key not found")
-	}
+    apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+    if apiKey == "" {
+        return nil, fmt.Errorf("MySportsFeeds API key not found")
+    }
 
-	endpoint := fmt.Sprintf(
-		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?date=%s-%s&team=%s",
-		lastMonth,
-		today,
-		teamsList,
-	)
+    client := NewRateLimitedClient(apiKey)  // Create rate-limited client
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
+    endpoint := fmt.Sprintf(
+        "https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?date=%s-%s&team=%s",
+        lastMonth,
+        today,
+        teamsList,
+    )
 
-	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
+    // Use DoRequest instead of making HTTP request directly
+    body, err := client.DoRequest(endpoint, 5)
+    if err != nil {
+        return nil, fmt.Errorf("error making request: %v", err)
+    }
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
+    var response TLPlayerStatsResponse
+    if err := json.Unmarshal(body, &response); err != nil {
+        return nil, fmt.Errorf("error parsing JSON: %v", err)
+    }
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %v", err)
-	}
-
-	var response TLPlayerStatsResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %v", err)
-	}
-
-	return &response, nil
+    return &response, nil
 }
 
+// func fetchCurrentTLStats(teamsList string) (*TLPlayerStatsResponse, error) {
+// 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+// 	if apiKey == "" {
+// 		return nil, fmt.Errorf("MySportsFeeds API key not found")
+// 	}
+
+// 	endpoint := fmt.Sprintf(
+// 		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?team=%s",
+// 		teamsList,
+// 	)
+
+// 	req, err := http.NewRequest("GET", endpoint, nil)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error creating request: %v", err)
+// 	}
+
+// 	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
+
+// 	client := &http.Client{Timeout: 10 * time.Second}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error making request: %v", err)
+// 	}
+// 	defer resp.Body.Close()
+
+// 	body, err := io.ReadAll(resp.Body)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error reading response: %v", err)
+// 	}
+
+// 	var response TLPlayerStatsResponse
+// 	if err := json.Unmarshal(body, &response); err != nil {
+// 		return nil, fmt.Errorf("error parsing JSON: %v", err)
+// 	}
+
+// 	return &response, nil
+// }
 func fetchCurrentTLStats(teamsList string) (*TLPlayerStatsResponse, error) {
-	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("MySportsFeeds API key not found")
-	}
+    apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+    if apiKey == "" {
+        return nil, fmt.Errorf("MySportsFeeds API key not found")
+    }
 
-	endpoint := fmt.Sprintf(
-		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?team=%s",
-		teamsList,
-	)
+    client := NewRateLimitedClient(apiKey)  // Create rate-limited client
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
+    endpoint := fmt.Sprintf(
+        "https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?team=%s",
+        teamsList,
+    )
 
-	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
+    // Use DoRequest instead of making HTTP request directly
+    body, err := client.DoRequest(endpoint, 5)
+    if err != nil {
+        return nil, fmt.Errorf("error making request: %v", err)
+    }
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
+    var response TLPlayerStatsResponse
+    if err := json.Unmarshal(body, &response); err != nil {
+        return nil, fmt.Errorf("error parsing JSON: %v", err)
+    }
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %v", err)
-	}
-
-	var response TLPlayerStatsResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %v", err)
-	}
-
-	return &response, nil
+    return &response, nil
 }
 
 func calculateRecentPeriodStats(currentStats, upToDateStats TLPlayerStats) TLPlayerStats {
@@ -499,7 +633,7 @@ func calculateRecentPeriodStats(currentStats, upToDateStats TLPlayerStats) TLPla
 	// Helper function to calculate recent period totals and per game stats
 	calculateRecent := func(totalStat, earlierStat int, totalPerGame, earlierPerGame float64) (int, float64) {
 		recentTotal := totalStat - earlierStat
-		recentPerGame := float64(recentTotal) / float64(recentGames)
+		recentPerGame := math.Round((float64(recentTotal)/float64(recentGames))*10) / 10
 		return recentTotal, recentPerGame
 	}
 
