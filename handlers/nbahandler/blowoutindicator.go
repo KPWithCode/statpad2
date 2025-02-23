@@ -137,7 +137,7 @@ func calculateBlowoutProbability(homeTeam, awayTeam BITeamStats) BlowoutPredicti
 
 func BlowoutPredictorHandler(c echo.Context) error {
 	// Fetch today's schedule
-	schedule, err := fetchTodaysScheduleII()
+	schedule, err := fetchTodaysScheduleIII()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Error fetching schedule: %v", err)})
 	}
