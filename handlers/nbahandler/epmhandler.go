@@ -239,7 +239,7 @@ func contains(slice []string, val string) bool {
 }
 
 func getEpmGameSchedule() ([]string, error) {
-    schedule, err := fetchTodaysScheduleII()
+    schedule, err := fetchTodaysScheduleIII()
     if err != nil {
         return nil, err
     }
