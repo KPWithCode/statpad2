@@ -63,6 +63,7 @@ type TLPlayerStats struct {
 		Miscellaneous struct {
 			PlusMinus        int     `json:"plusMinus"`
 			PlusMinusPerGame float64 `json:"plusMinusPerGame"`
+			MinSecondsPerGame float64    `json:"minSecondsPerGame"`
 		} `json:"miscellaneous"`
 	} `json:"stats"`
 }
@@ -162,67 +163,7 @@ func (c *RateLimitedClient) DoRequest(endpoint string, backoffSeconds int) ([]by
 
     return io.ReadAll(resp.Body)
 }
-// func (c *RateLimitedClient) DoRequest(endpoint string, backoffSeconds int) ([]byte, error) {
-// 	c.mu.Lock()
 
-// 	// Check if we need to reset the minute counter
-// 	now := time.Now()
-// 	if now.Sub(c.minuteStart) >= time.Minute {
-// 		c.requestCount = 0
-// 		c.minuteStart = now
-// 	}
-
-// 	// Calculate new request cost (1 + backoff seconds)
-// 	newCost := 1 + backoffSeconds
-
-// 	// Check if this would exceed our per-minute limit
-// 	if c.requestCount+newCost > 100 {
-// 		c.mu.Unlock()
-// 		return nil, fmt.Errorf("rate limit would be exceeded (current count: %d, new cost: %d)",
-// 			c.requestCount, newCost)
-// 	}
-
-// 	// Check if we need to wait for backoff
-// 	if backoffSeconds > 0 {
-// 		if lastRequest, exists := c.lastRequestTime[endpoint]; exists {
-// 			timeSinceLastRequest := now.Sub(lastRequest)
-// 			if timeSinceLastRequest < time.Duration(backoffSeconds)*time.Second {
-// 				waitTime := time.Duration(backoffSeconds)*time.Second - timeSinceLastRequest
-// 				c.mu.Unlock()
-// 				time.Sleep(waitTime)
-// 				c.mu.Lock()
-// 			}
-// 		}
-// 	}
-
-// 	// Update counters and timestamps
-// 	c.requestCount += newCost
-// 	c.lastRequestTime[endpoint] = time.Now()
-// 	c.mu.Unlock()
-
-// 	// Make the actual request
-// 	req, err := http.NewRequest("GET", endpoint, nil)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error creating request: %v", err)
-// 	}
-
-// 	req.SetBasicAuth(c.apiKey, "MYSPORTSFEEDS")
-
-// 	client := &http.Client{Timeout: 30 * time.Second}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error making request: %v", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		bodyBytes, _ := io.ReadAll(resp.Body)
-// 		return nil, fmt.Errorf("API returned non-200 status code: %d, body: %s",
-// 			resp.StatusCode, string(bodyBytes))
-// 	}
-
-// 	return io.ReadAll(resp.Body)
-// }
 
 func fetchTodaysScheduleIII() ([]string, error) {
 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
@@ -346,7 +287,7 @@ func TrendLensHandler(c echo.Context) error {
 		} else {
 			simplifiedPER = 0.0
 		}
-
+		minPerGame := float64(stats.Stats.Miscellaneous.MinSecondsPerGame) / 60.0
 		FGA := stats.Stats.FieldGoals.FgAtt
 		FTA := stats.Stats.FreeThrows.FtAtt
 		PTS := stats.Stats.Offense.Pts
@@ -398,6 +339,7 @@ func TrendLensHandler(c echo.Context) error {
             "fg3ptPct":         stats.Stats.FieldGoals.Fg3PtPct,
             "plusMinus":        stats.Stats.Miscellaneous.PlusMinus,
             "plusMinusPerGame": stats.Stats.Miscellaneous.PlusMinusPerGame,
+			"minPerGame": 		roundToOneDecimal(minPerGame),
             "lastUpdated":      time.Now().Format(time.RFC3339),
             "simplifiedPER":    roundToOneDecimal(simplifiedPER),
             "tsPct":            roundToOneDecimal(tsPct),
@@ -409,6 +351,8 @@ func TrendLensHandler(c echo.Context) error {
 			roundToOneDecimal := func(val float64) float64 {
 				return math.Round(val*10) / 10
 			}
+			recentMinPerGame := float64(recentStats.Stats.Miscellaneous.MinSecondsPerGame) / 60.0
+
             recentStatsMap := map[string]interface{}{
                 "recentGamesPlayed":      recentStats.Stats.GamesPlayed,
                 "recentPoints":           recentStats.Stats.Offense.Pts,
@@ -423,6 +367,7 @@ func TrendLensHandler(c echo.Context) error {
                 "recentFg3ptPct":         recentStats.Stats.FieldGoals.Fg3PtPct,
                 "recentPlusMinus":        recentStats.Stats.Miscellaneous.PlusMinus,
                 "recentPlusMinusPerGame": roundToOneDecimal(recentStats.Stats.Miscellaneous.PlusMinusPerGame),
+				"recentMinPerGame":       roundToOneDecimal(recentMinPerGame),
                 "recentSimplifiedPER":    roundToOneDecimal(recentMetrics["simplifiedPER"]),
                 "recentTsPct":            roundToOneDecimal(recentMetrics["tsPct"]),
                 "recentEFGPct":           roundToOneDecimal(recentMetrics["eFGPct"]),
@@ -435,38 +380,8 @@ func TrendLensHandler(c echo.Context) error {
         }
 		
 		batchRequests = append(batchRequests, *search.NewEmptyBatchRequest().
-			// SetAction("updateObject")
 			SetAction(search.Action("updateObject")).
 			SetBody(batchBody))
-			// SetBody(
-			// 	map[string]interface{}{
-			// 	"objectID":         fmt.Sprintf("player_%d", stats.Player.ID),
-			// 	"playerID":         stats.Player.ID,
-			// 	"firstName":        stats.Player.FirstName,
-			// 	"lastName":         stats.Player.LastName,
-			// 	"fullName":         fmt.Sprintf("%s %s", stats.Player.FirstName, stats.Player.LastName),
-			// 	"position":         stats.Player.PrimaryPosition,
-			// 	"teamID":           stats.Player.CurrentTeam.ID,
-			// 	"teamAbbrev":       stats.Player.CurrentTeam.Abbreviation,
-			// 	"officialImageSrc": stats.Player.OfficialImageSrc,
-			// 	"gamesPlayed":      stats.Stats.GamesPlayed,
-			// 	"points":           stats.Stats.Offense.Pts,
-			// 	"rebounds":         stats.Stats.Rebounds,
-			// 	"assists":          stats.Stats.Offense.Ast,
-			// 	"pointsPerGame":    stats.Stats.Offense.PtsPerGame,
-			// 	"rebPerGame":       stats.Stats.Rebounds.RebPerGame,
-			// 	"astPerGame":       stats.Stats.Offense.AstPerGame,
-			// 	"blkPerGame":       stats.Stats.Defense.BlkPerGame,
-			// 	"stlPerGame":       stats.Stats.Defense.StlPerGame,
-			// 	"tovPerGame":       stats.Stats.Defense.TovPerGame,
-			// 	"fg3ptPct":         stats.Stats.FieldGoals.Fg3PtPct,
-			// 	"plusMinus":        stats.Stats.Miscellaneous.PlusMinus,
-			// 	"plusMinusPerGame": stats.Stats.Miscellaneous.PlusMinusPerGame,
-			// 	"lastUpdated":      time.Now().Format(time.RFC3339),
-			// 	"simplifiedPER":    simplifiedPER,
-			// 	"tsPct":            tsPct,
-			// 	"eFGPct":           eFGPct,
-			// }))
 	}
 
 	// Perform batch update
@@ -488,45 +403,6 @@ func TrendLensHandler(c echo.Context) error {
 	})
 }
 
-// func fetchTLStats(lastMonth, today, teamsList string) (*TLPlayerStatsResponse, error) {
-// 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
-// 	if apiKey == "" {
-// 		return nil, fmt.Errorf("MySportsFeeds API key not found")
-// 	}
-
-// 	endpoint := fmt.Sprintf(
-// 		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?date=%s-%s&team=%s",
-// 		lastMonth,
-// 		today,
-// 		teamsList,
-// 	)
-
-// 	req, err := http.NewRequest("GET", endpoint, nil)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error creating request: %v", err)
-// 	}
-
-// 	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
-
-// 	client := &http.Client{Timeout: 10 * time.Second}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error making request: %v", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	body, err := io.ReadAll(resp.Body)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error reading response: %v", err)
-// 	}
-
-// 	var response TLPlayerStatsResponse
-// 	if err := json.Unmarshal(body, &response); err != nil {
-// 		return nil, fmt.Errorf("error parsing JSON: %v", err)
-// 	}
-
-// 	return &response, nil
-// }
 func fetchTLStats(lastMonth, today, teamsList string) (*TLPlayerStatsResponse, error) {
     apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
     if apiKey == "" {
@@ -556,43 +432,6 @@ func fetchTLStats(lastMonth, today, teamsList string) (*TLPlayerStatsResponse, e
     return &response, nil
 }
 
-// func fetchCurrentTLStats(teamsList string) (*TLPlayerStatsResponse, error) {
-// 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
-// 	if apiKey == "" {
-// 		return nil, fmt.Errorf("MySportsFeeds API key not found")
-// 	}
-
-// 	endpoint := fmt.Sprintf(
-// 		"https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/player_stats_totals.json?team=%s",
-// 		teamsList,
-// 	)
-
-// 	req, err := http.NewRequest("GET", endpoint, nil)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error creating request: %v", err)
-// 	}
-
-// 	req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
-
-// 	client := &http.Client{Timeout: 10 * time.Second}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error making request: %v", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	body, err := io.ReadAll(resp.Body)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("error reading response: %v", err)
-// 	}
-
-// 	var response TLPlayerStatsResponse
-// 	if err := json.Unmarshal(body, &response); err != nil {
-// 		return nil, fmt.Errorf("error parsing JSON: %v", err)
-// 	}
-
-// 	return &response, nil
-// }
 func fetchCurrentTLStats(teamsList string) (*TLPlayerStatsResponse, error) {
     apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
     if apiKey == "" {
@@ -695,7 +534,16 @@ func calculateRecentPeriodStats(currentStats, upToDateStats TLPlayerStats) TLPla
 	// Miscellaneous
 	recentStats.Stats.Miscellaneous.PlusMinus = currentStats.Stats.Miscellaneous.PlusMinus - upToDateStats.Stats.Miscellaneous.PlusMinus
 	recentStats.Stats.Miscellaneous.PlusMinusPerGame = float64(recentStats.Stats.Miscellaneous.PlusMinus) / float64(recentGames)
-
+	totalMinSeconds := float64(totalGames) * currentStats.Stats.Miscellaneous.MinSecondsPerGame
+	earlierMinSeconds := float64(earlierGames) * upToDateStats.Stats.Miscellaneous.MinSecondsPerGame
+	recentTotalMinSeconds := totalMinSeconds - earlierMinSeconds
+	
+	// Calculate per game for recent period
+	if recentGames > 0 {
+		recentStats.Stats.Miscellaneous.MinSecondsPerGame = recentTotalMinSeconds / float64(recentGames)
+	} else {
+		recentStats.Stats.Miscellaneous.MinSecondsPerGame = 0
+	}
 	return recentStats
 }
 
