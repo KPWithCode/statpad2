@@ -16,7 +16,10 @@ func main() {
 	}
 	e := echo.New()
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"http://www.localhost:3000"},
+		AllowOrigins: []string{"http://www.localhost:3000", "http://192.168.1.155:3000", "exp://192.168.1.155:19000",
+			"exp://192.168.1.155:19001",
+			"exp://192.168.1.155:19002",
+			"http://192.168.1.155:8081"}, // Add Expo development client URL
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 		AllowCredentials: true, // Set to true if you want to allow credentials (cookies, HTTP authentication) to be included in the CORS request
 		MaxAge:           3600, // Max age of the CORS options preflight request in seconds
