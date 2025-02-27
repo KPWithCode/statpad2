@@ -127,7 +127,9 @@ func calculateBlowoutProbability(homeTeam, awayTeam BITeamStats) BlowoutPredicti
 
 	// Calculate probability of blowout (14+ point margin)
 	blowoutThreshold := 16.0
-	prediction.BlowoutProbability = 1.0 / (1.0 + math.Exp(-0.2*(prediction.PredictedMargin-blowoutThreshold)))
+	// prediction.BlowoutProbability = 1.0 / (1.0 + math.Exp(-0.2*(prediction.PredictedMargin-blowoutThreshold)))
+	prediction.BlowoutProbability = 1.0 / (1.0 + math.Exp(-0.25*(prediction.PredictedMargin-blowoutThreshold)))
+
 
 	prediction.Factors.NetRating = netRatingDiff
 	prediction.Factors.PythWinPct = pythWinPctDiff
