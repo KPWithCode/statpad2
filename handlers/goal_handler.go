@@ -20,7 +20,7 @@ func ProcessGoalsHandler(c echo.Context) error {
 
 	filePath := c.QueryParam("filePath")
 	if filePath == "" {
-		filePath = "data/feb21shots.csv"
+		filePath = "data/feb25.csv"
 	}
 
 	file, err := os.Open(filePath)

@@ -26,7 +26,7 @@ type TeamRanking struct {
 }
 
 func ProcessGoalsAgainstHandler(c echo.Context) error {
-	file, err := os.Open("data/feb21shots.csv")
+	file, err := os.Open("data/feb25.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
