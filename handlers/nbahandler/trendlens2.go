@@ -165,6 +165,47 @@ func (c *RateLimitedClient) DoRequest(endpoint string, backoffSeconds int) ([]by
 }
 
 
+// func fetchTodaysScheduleIII() ([]string, error) {
+// 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
+// 	if apiKey == "" {
+// 		return nil, fmt.Errorf("API key not found in environment variables")
+// 	}
+
+// 	client := NewRateLimitedClient(apiKey)
+
+// 	today := time.Now().AddDate(0, 0, 0).Format("20060102")
+// 	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/games.json?date=%s", today)
+
+// 	// Games endpoint doesn't require backoff
+// 	data, err := client.DoRequest(endpoint, 0)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	var response struct {
+// 		Games []struct {
+// 			Schedule struct {
+// 				AwayTeam struct {
+// 					Abbreviation string `json:"abbreviation"`
+// 				} `json:"awayTeam"`
+// 				HomeTeam struct {
+// 					Abbreviation string `json:"abbreviation"`
+// 				} `json:"homeTeam"`
+// 			} `json:"schedule"`
+// 		} `json:"games"`
+// 	}
+
+// 	if err := json.Unmarshal(data, &response); err != nil {
+// 		return nil, fmt.Errorf("error parsing JSON: %v", err)
+// 	}
+
+// 	var teams []string
+// 	for _, game := range response.Games {
+// 		teams = append(teams, game.Schedule.AwayTeam.Abbreviation, game.Schedule.HomeTeam.Abbreviation)
+// 	}
+
+// 	return teams, nil
+// }
 func fetchTodaysScheduleIII() ([]string, error) {
 	apiKey := os.Getenv("MYSPORTSFEEDS_API_KEY")
 	if apiKey == "" {
@@ -176,10 +217,29 @@ func fetchTodaysScheduleIII() ([]string, error) {
 	today := time.Now().AddDate(0, 0, 0).Format("20060102")
 	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/games.json?date=%s", today)
 
-	// Games endpoint doesn't require backoff
-	data, err := client.DoRequest(endpoint, 0)
+	// Implement retry logic
+	maxRetries := 3
+	var data []byte
+	var err error
+	
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		data, err = client.DoRequest(endpoint, 0)
+		if err == nil {
+			break // Success, exit retry loop
+		}
+		
+		// If this is not the last attempt, wait before retrying
+		if attempt < maxRetries {
+			retryWait := time.Duration(attempt*2) * time.Second
+			fmt.Printf("Request attempt %d failed: %v. Retrying in %v...\n", 
+				attempt, err, retryWait)
+			time.Sleep(retryWait)
+		}
+	}
+	
+	// If all retries failed, return the last error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed after %d attempts: %v", maxRetries, err)
 	}
 
 	var response struct {
@@ -202,6 +262,11 @@ func fetchTodaysScheduleIII() ([]string, error) {
 	var teams []string
 	for _, game := range response.Games {
 		teams = append(teams, game.Schedule.AwayTeam.Abbreviation, game.Schedule.HomeTeam.Abbreviation)
+	}
+
+	// Handle case where no games are scheduled for today
+	if len(teams) == 0 {
+		fmt.Println("No games scheduled for today")
 	}
 
 	return teams, nil
