@@ -90,11 +90,13 @@ func fetchTodaysSchedule() ([]string, error) {
         return nil, fmt.Errorf("API key not found in environment variables")
     }
 
-	// fmt.Printf("%s", today)
-    // endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/upcoming/date/%s/games.json", today)
-	tomorrow := time.Now().AddDate(0, 0, 1).Format("20060102")
+    
+	today := time.Now().AddDate(0, 0, 1).Format("20060102")
+    fmt.Print(today)
+    // today := time.Now().UTC().Format("20060102")
     // today := time.Now().Format("20060102")
-	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/2024-2025-regular/date/%s/games.json", tomorrow)
+	endpoint := fmt.Sprintf("https://api.mysportsfeeds.com/v2.1/pull/nba/current/date/%s/games.json", today)
+
     req, err := http.NewRequest("GET", endpoint, nil)
     if err != nil {
         return nil, fmt.Errorf("error creating request: %v", err)
@@ -103,8 +105,9 @@ func fetchTodaysSchedule() ([]string, error) {
     req.SetBasicAuth(apiKey, "MYSPORTSFEEDS")
 
 	q := req.URL.Query()
-    q.Add("status", "unplayed, in-progress") // Include all relevant game statuses
+    q.Add("status", "in-progress,unplayed,final") // Include all relevant game statuses
     q.Add("sort", "game.starttime.A")             // Sort by start time ascending
+    q.Add("force", "true")
     req.URL.RawQuery = q.Encode()
 
 
@@ -219,13 +222,7 @@ func fetchPlayerPositionalStats(playingTeams []string) ([]PlayerStatsData, error
 }
 
 func PositionalDefenseHandler(c echo.Context) error {
-    playingTeams, err := fetchTodaysSchedule()
-    // if err != nil {
-    //     return c.JSON(http.StatusInternalServerError, map[string]interface{}{
-    //         "status": "error",
-    //         "error":  fmt.Sprintf("Failed to fetch today's schedule: %v", err),
-    //     })
-    // }
+    playingTeams, err := fetchTodaysScheduleII()
 	if err != nil {
         if err.Error() == "no games scheduled for today" {
             return c.JSON(http.StatusOK, map[string]interface{}{
