@@ -13,7 +13,7 @@ func GoalRoutes(e *echo.Echo) {
 	e.GET("/process-goals-against", handlers.ProcessGoalsAgainstHandler)
 	e.GET("/process-dangerzone", handlers.ProcessDangerZone)
 
-
+	e.GET("/nhl/trendlens", handlers.NHLTrendLensHandler)
 
 	e.GET("/process-goals", handlers.ProcessGoalsHandler)
 }
