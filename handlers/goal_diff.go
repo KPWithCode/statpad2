@@ -27,11 +27,10 @@ type gameState struct {
 	period    int
 }
 
-
 func ProcessGoalDifferentialHandler(c echo.Context) error {
 	filePath := c.QueryParam("filePath")
 	if filePath == "" {
-		filePath = "data/feb25.csv"
+		filePath = "data/march1.csv"
 	}
 
 	file, err := os.Open(filePath)

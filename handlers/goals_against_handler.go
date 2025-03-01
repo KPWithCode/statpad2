@@ -10,23 +10,21 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-
-
 type GoalsAgainst struct {
-	Team         string              `json:"team"`
+	Team         string             `json:"team"`
 	GoalsPerGame map[string]float64 `json:"goals_per_game"`
 	TotalGoals   map[string]int     `json:"total_goals"`
-	TotalGames   int                 `json:"total_games"`
+	TotalGames   int                `json:"total_games"`
 }
 
 type TeamRanking struct {
-	Team       string  `json:"team"`
-	Rank       int     `json:"rank"`
+	Team                string  `json:"team"`
+	Rank                int     `json:"rank"`
 	GoalsAgainstPerGame float64 `json:"goals_against_per_game"`
 }
 
 func ProcessGoalsAgainstHandler(c echo.Context) error {
-	file, err := os.Open("data/feb25.csv")
+	file, err := os.Open("data/march1.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
@@ -132,7 +130,7 @@ func ProcessGoalsAgainstHandler(c echo.Context) error {
 		}
 		goalsAgainstPerGame := totalGoalsAgainst / float64(stats.TotalGames)
 		teamRankings = append(teamRankings, TeamRanking{
-			Team:               stats.Team,
+			Team:                stats.Team,
 			GoalsAgainstPerGame: goalsAgainstPerGame,
 		})
 	}

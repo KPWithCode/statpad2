@@ -1,4 +1,3 @@
-
 package handlers
 
 import (
@@ -12,13 +11,14 @@ import (
 
 // ShotsToGoalStats represents stats for shots-to-goal conversion rate.
 type ShotsToGoalStats struct {
-	Team               string  `json:"team"`
-	Shots              int     `json:"shots"`
-	Goals              int     `json:"goals"`
-	ConversionRate     float64 `json:"conversion_rate"`
+	Team           string  `json:"team"`
+	Shots          int     `json:"shots"`
+	Goals          int     `json:"goals"`
+	ConversionRate float64 `json:"conversion_rate"`
 }
+
 func ProcessShotsToGoalHandler(c echo.Context) error {
-	file, err := os.Open("data/feb25.csv")
+	file, err := os.Open("data/march1.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
