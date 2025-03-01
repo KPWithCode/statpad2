@@ -65,7 +65,6 @@ type PlayerStats struct {
 	HighDangerGoals int     `json:"highDangerGoals"`
 }
 
-
 // Helper function to check if a shot is from a high-danger area
 func isHighDangerShot(shotDistance float64, shotAngle float64) bool {
 	// Define high danger shots based on distance and angle
@@ -139,13 +138,27 @@ func calculateAdvancedMetrics(playerStats PlayerStats) map[string]float64 {
 		metrics["shootingPct"] = 0.0
 	}
 
-	// Shot on goal percentage
-	if playerStats.ShotsAttempted > 0 {
-		sogPct := float64(playerStats.ShotsOnGoal) / float64(playerStats.ShotsAttempted) * 100
-		metrics["shotOnGoalPct"] = roundToOneDecimal(sogPct)
+	if playerStats.GamesPlayed > 0 {
+		shotsPerGame := float64(playerStats.ShotsAttempted) / float64(playerStats.GamesPlayed)
+		metrics["shotsPerGame"] = roundToOneDecimal(shotsPerGame)
 	} else {
-		metrics["shotOnGoalPct"] = 0.0
+		metrics["shotsPerGame"] = 0.0
 	}
+
+	// Shots on goal per game
+	if playerStats.GamesPlayed > 0 {
+		sogPerGame := float64(playerStats.ShotsOnGoal) / float64(playerStats.GamesPlayed)
+		metrics["shotsOnGoalPerGame"] = roundToOneDecimal(sogPerGame)
+	} else {
+		metrics["shotsOnGoalPerGame"] = 0.0
+	}
+	// Shot on goal percentage
+	// if playerStats.ShotsAttempted > 0 {
+	// 	sogPct := float64(playerStats.ShotsOnGoal) / float64(playerStats.ShotsAttempted) * 100
+	// 	metrics["shotOnGoalPct"] = roundToOneDecimal(sogPct)
+	// } else {
+	// 	metrics["shotOnGoalPct"] = 0.0
+	// }
 
 	// Expected goals per shot
 	if playerStats.ShotsAttempted > 0 {
@@ -220,187 +233,264 @@ func calculateAdvancedMetrics(playerStats PlayerStats) map[string]float64 {
 
 	return metrics
 }
-
-// Process CSV data to extract shot data
 func processCSVToShotData(csvData [][]string, headers []string) ([]ShotData, error) {
-	var shotData []ShotData
+    var shotData []ShotData
 
-	// Create map of header names to indices
-	headerMap := make(map[string]int)
-	for i, header := range headers {
-		headerMap[header] = i
-	}
+    // Create map of header names to indices
+    headerMap := make(map[string]int)
+    for i, header := range headers {
+        headerMap[header] = i
+    }
 
-	// Check for required columns
-	timeIdx := findColumnIndex(headers, "time")
-	if timeIdx == -1 {
-		fmt.Println("Warning: 'time' column not found in CSV, date filtering may not work properly")
-	}
+    // Process each row in the CSV
+    for i := 1; i < len(csvData); i++ {
+        row := csvData[i]
+        if len(row) != len(headers) {
+            continue // Skip malformed rows
+        }
 
-	// Process each row in the CSV
-	for i := 1; i < len(csvData); i++ {
-		row := csvData[i]
-		if len(row) != len(headers) {
-			continue // Skip malformed rows
-		}
+        // Helper function to get value at a specific column
+        getValue := func(header string) string {
+            if idx, ok := headerMap[header]; ok && idx < len(row) {
+                return row[idx]
+            }
+            return ""
+        }
 
-		// Helper function to get value at a specific column
-		getValue := func(header string) string {
-			if idx, ok := headerMap[header]; ok && idx < len(row) {
-				return row[idx]
-			}
-			return ""
-		}
+        // Check if this is truly a player shot (has player ID, name, etc.)
+        playerID := getValue("shooterPlayerId")
+        playerName := getValue("shooterName")
+        if playerID == "" || playerName == "" {
+            // Skip rows that don't have clear player attribution
+            continue
+        }
 
-		// Get time for date filtering
-		timeStr := getValue("time")
+        // Determine if it's a shot on goal (must be explicitly SHOT event)
+        eventType := getValue("event")
+        isShotOnGoal := eventType == "SHOT"
+        isGoal := parseBool(getValue("goal"), false)
 
-		// Construct shot data from CSV row
-		shot := ShotData{
-			ShotID:              getValue("shotID"),
-			GameID:              getValue("game_id"),
-			ShooterName:         getValue("shooterName"),
-			ShooterPlayerID:     getValue("shooterPlayerId"),
-			GoalieNameForShot:   getValue("goalieNameForShot"),
-			GoalieIDForShot:     getValue("goalieIdForShot"),
-			TeamCode:            getValue("teamCode"),
-			HomeTeamCode:        getValue("homeTeamCode"),
-			AwayTeamCode:        getValue("awayTeamCode"),
-			ShotDistance:        parseFloat(getValue("shotDistance"), 0),
-			ShotAngle:           parseFloat(getValue("shotAngle"), 0),
-			ShotType:            getValue("shotType"),
-			Goal:                parseBool(getValue("goal"), false),
-			XGoal:               parseFloat(getValue("xGoal"), 0),
-			ShotRush:            parseBool(getValue("shotRush"), false),
-			ShotWasOnGoal:       parseBool(getValue("shotWasOnGoal"), false),
-			ShotOnEmptyNet:      parseBool(getValue("shotOnEmptyNet"), false),
-			Period:              parseInt(getValue("period"), 0),
-			TimeLeft:            parseFloat(getValue("timeLeft"), 0),
-			ShotGoalProbability: parseFloat(getValue("shotGoalProbability"), 0),
-			HomeSkatersOnIce:    parseInt(getValue("homeSkatersOnIce"), 5),
-			AwaySkatersOnIce:    parseInt(getValue("awaySkatersOnIce"), 5),
-			PlayerPosition:      getValue("playerPositionThatDidEvent"),
-			ShooterTimeOnIce:    parseFloat(getValue("shooterTimeOnIce"), 0),
-			Time:                timeStr,
-		}
+        // Get time for date filtering
+        timeStr := getValue("time")
 
-		// Try to parse the time if available
-		if timeStr != "" {
-			// Attempt to parse time in various formats
-			formats := []string{
-				"2006-01-02 15:04:05",
-				"2006-01-02T15:04:05",
-				"01/02/2006 15:04:05",
-				"01/02/2006",
-				"2006-01-02",
-			}
+        // Construct shot data from CSV row
+        shot := ShotData{
+            ShotID:              getValue("shotID"),
+            GameID:              getValue("game_id"),
+            ShooterName:         playerName,
+            ShooterPlayerID:     playerID,
+            GoalieNameForShot:   getValue("goalieNameForShot"),
+            GoalieIDForShot:     getValue("goalieIdForShot"),
+            TeamCode:            getValue("teamCode"),
+            HomeTeamCode:        getValue("homeTeamCode"),
+            AwayTeamCode:        getValue("awayTeamCode"),
+            ShotDistance:        parseFloat(getValue("shotDistance"), 0),
+            ShotAngle:           parseFloat(getValue("shotAngle"), 0),
+            ShotType:            getValue("shotType"),
+            Goal:                isGoal,
+            XGoal:               parseFloat(getValue("xGoal"), 0),
+            ShotRush:            parseBool(getValue("shotRush"), false),
+            ShotWasOnGoal:       isShotOnGoal,
+            ShotOnEmptyNet:      parseBool(getValue("shotOnEmptyNet"), false),
+            Period:              parseInt(getValue("period"), 0),
+            TimeLeft:            parseFloat(getValue("timeLeft"), 0),
+            ShotGoalProbability: parseFloat(getValue("shotGoalProbability"), 0),
+            HomeSkatersOnIce:    parseInt(getValue("homeSkatersOnIce"), 5),
+            AwaySkatersOnIce:    parseInt(getValue("awaySkatersOnIce"), 5),
+            PlayerPosition:      getValue("playerPositionThatDidEvent"),
+            ShooterTimeOnIce:    parseFloat(getValue("shooterTimeOnIce"), 0),
+            Time:                timeStr,
+        }
 
-			for _, format := range formats {
-				if t, err := time.Parse(format, timeStr); err == nil {
-					shot.Date = t
-					break
-				}
-			}
-		}
+        // Try to parse the time if available
+        if timeStr != "" {
+            // Attempt to parse time in various formats
+            formats := []string{
+                "2006-01-02 15:04:05",
+                "2006-01-02T15:04:05",
+                "01/02/2006 15:04:05",
+                "01/02/2006",
+                "2006-01-02",
+            }
 
-		shotData = append(shotData, shot)
-	}
+            for _, format := range formats {
+                if t, err := time.Parse(format, timeStr); err == nil {
+                    shot.Date = t
+                    break
+                }
+            }
+        }
 
-	return shotData, nil
+        shotData = append(shotData, shot)
+    }
+
+    return shotData, nil
 }
 
-// Aggregate shots by player
+// }
+// Update the aggregatePlayerStats function to only count player shots
+func debugShotData(shotData []ShotData) {
+    playerShots := 0
+    teamShots := 0
+    sotsOnGoal := 0
+    
+    // Count different types of shots
+    for _, shot := range shotData {
+        if shot.ShooterPlayerID != "" {
+            playerShots++
+            if shot.ShotWasOnGoal {
+                sotsOnGoal++
+            }
+        } else {
+            teamShots++
+        }
+    }
+    
+    fmt.Printf("Data Summary:\n")
+    fmt.Printf("Total Shots: %d\n", len(shotData))
+    fmt.Printf("Player Shots: %d\n", playerShots)
+    fmt.Printf("Team Shots: %d\n", teamShots)
+    fmt.Printf("Shots On Goal: %d\n", sotsOnGoal)
+    
+    // Sample some players to check their stats
+    playerShotCounts := make(map[string]int)
+    playerSOG := make(map[string]int)
+    playerNames := make(map[string]string)
+    
+    for _, shot := range shotData {
+        if shot.ShooterPlayerID != "" {
+            playerShotCounts[shot.ShooterPlayerID]++
+            playerNames[shot.ShooterPlayerID] = shot.ShooterName
+            if shot.ShotWasOnGoal {
+                playerSOG[shot.ShooterPlayerID]++
+            }
+        }
+    }
+    
+    fmt.Printf("\nPlayer Shot Samples:\n")
+    count := 0
+    for id, name := range playerNames {
+        if count >= 5 {
+            break
+        }
+        fmt.Printf("%s (%s): Total Shots: %d, SOG: %d\n", 
+            name, id, playerShotCounts[id], playerSOG[id])
+        count++
+    }
+}
 func aggregatePlayerStats(shotData []ShotData) map[string]PlayerStats {
-	// Map to store player stats
-	playerStats := make(map[string]PlayerStats)
+    // Map to store player stats
+    playerStats := make(map[string]PlayerStats)
 
-	// Map to track games played by each player
-	playerGames := make(map[string]map[string]bool)
+    // Map to track games played by each player
+    playerGames := make(map[string]map[string]bool)
 
-	// Process each shot
-	for _, shot := range shotData {
-		playerId := shot.ShooterPlayerID
+    // Process each shot
+    for _, shot := range shotData {
+        playerId := shot.ShooterPlayerID
 
-		// Skip if player ID is missing
-		if playerId == "" {
-			continue
-		}
+        // Skip if player ID is missing
+        if playerId == "" {
+            continue
+        }
 
-		// Initialize player maps if needed
-		if _, exists := playerStats[playerId]; !exists {
-			playerStats[playerId] = PlayerStats{
-				PlayerID:   playerId,
-				PlayerName: shot.ShooterName,
-				Position:   shot.PlayerPosition,
-				TeamCode:   shot.TeamCode,
-			}
-		}
+        // Initialize player maps if needed
+        if _, exists := playerStats[playerId]; !exists {
+            playerStats[playerId] = PlayerStats{
+                PlayerID:   playerId,
+                PlayerName: shot.ShooterName,
+                Position:   shot.PlayerPosition,
+                TeamCode:   shot.TeamCode,
+            }
+        }
 
-		// Initialize games set if needed
-		if _, exists := playerGames[playerId]; !exists {
-			playerGames[playerId] = make(map[string]bool)
-		}
+        // Initialize games set if needed
+        if _, exists := playerGames[playerId]; !exists {
+            playerGames[playerId] = make(map[string]bool)
+        }
 
-		// Add game to player's games played
-		playerGames[playerId][shot.GameID] = true
+        // Add game to player's games played
+        playerGames[playerId][shot.GameID] = true
 
-		// Update player stats
-		stats := playerStats[playerId]
+        // Update player stats
+        stats := playerStats[playerId]
 
-		stats.ShotsAttempted++
+        stats.ShotsAttempted++
 
-		if shot.ShotWasOnGoal {
-			stats.ShotsOnGoal++
-		}
+        // Count as shot on goal ONLY if it's explicitly marked as a shot on goal
+        if shot.ShotWasOnGoal {
+            stats.ShotsOnGoal++
+        }
 
-		if shot.Goal {
+		if shot.ShotOnEmptyNet && shot.ShotWasOnGoal {
+			// If a shot is on an empty net and on goal, it should be a goal
 			stats.Goals++
-
+			stats.EmptyNetGoals++
+			// We already counted it as a shot on goal above
+		} else if shot.Goal {
+			// For regular goals
+			stats.Goals++
+			
+			// Ensure all goals are counted as shots on goal
+			if !shot.ShotWasOnGoal {
+				stats.ShotsOnGoal++
+			}
+			
+			// Check again for empty net goals that might not have been caught in the first condition
 			if shot.ShotOnEmptyNet {
 				stats.EmptyNetGoals++
 			}
 		}
 
-		if shot.ShotRush {
-			stats.RushShots++
-		}
+        // Rest of function remains the same
+        if shot.ShotRush {
+            stats.RushShots++
+        }
 
-		// Check for high danger shot
-		if isHighDangerShot(shot.ShotDistance, shot.ShotAngle) {
-			stats.HighDangerShots++
-			if shot.Goal {
-				stats.HighDangerGoals++
-			}
-		}
+        // Check for high danger shot
+        if isHighDangerShot(shot.ShotDistance, shot.ShotAngle) {
+            stats.HighDangerShots++
+            if shot.Goal {
+                stats.HighDangerGoals++
+            }
+        }
 
-		// Check for power play
-		isHomeTeam := shot.TeamCode == shot.HomeTeamCode
-		if isPowerPlayShot(shot.HomeSkatersOnIce, shot.AwaySkatersOnIce, isHomeTeam) {
-			stats.PowerPlayShots++
-			if shot.Goal {
-				stats.PowerPlayGoals++
-			}
-		}
+        // Check for power play
+        isHomeTeam := shot.TeamCode == shot.HomeTeamCode
+        if isPowerPlayShot(shot.HomeSkatersOnIce, shot.AwaySkatersOnIce, isHomeTeam) {
+            stats.PowerPlayShots++
+            if shot.Goal {
+                stats.PowerPlayGoals++
+            }
+        }
 
-		// Update shot details
-		stats.AverageDistance = ((stats.AverageDistance * float64(stats.ShotsAttempted-1)) + shot.ShotDistance) / float64(stats.ShotsAttempted)
-		stats.AverageAngle = ((stats.AverageAngle * float64(stats.ShotsAttempted-1)) + math.Abs(shot.ShotAngle)) / float64(stats.ShotsAttempted)
-		stats.TotalXGoals += shot.XGoal
-		stats.TimeOnIce += shot.ShooterTimeOnIce
+        // Update shot details
+        stats.AverageDistance = ((stats.AverageDistance * float64(stats.ShotsAttempted-1)) + shot.ShotDistance) / float64(stats.ShotsAttempted)
+        stats.AverageAngle = ((stats.AverageAngle * float64(stats.ShotsAttempted-1)) + math.Abs(shot.ShotAngle)) / float64(stats.ShotsAttempted)
+        stats.TotalXGoals += shot.XGoal
+        stats.TimeOnIce += shot.ShooterTimeOnIce
 
-		// Update the player stats in the map
-		playerStats[playerId] = stats
-	}
+        // Update the player stats in the map
+        playerStats[playerId] = stats
+    }
 
-	// Update games played for each player
-	for playerId, games := range playerGames {
-		if stats, exists := playerStats[playerId]; exists {
-			stats.GamesPlayed = len(games)
-			playerStats[playerId] = stats
-		}
-	}
+    // Update games played for each player and debug output
+    fmt.Println("\nPlayer stats before division by games played:")
+    for playerId, games := range playerGames {
+        if stats, exists := playerStats[playerId]; exists {
+            stats.GamesPlayed = len(games)
+            
+            if stats.PlayerName == "Jakob Chychrun" {
+                fmt.Printf("Jakob Chychrun (before): Games: %d, SOG: %d, SOG/Game: %f\n", 
+                    stats.GamesPlayed, stats.ShotsOnGoal, 
+                    float64(stats.ShotsOnGoal)/float64(stats.GamesPlayed))
+            }
+            
+            playerStats[playerId] = stats
+        }
+    }
 
-	return playerStats
+    return playerStats
 }
 
 // Aggregate shots by game
@@ -493,7 +583,7 @@ func aggregateGameStats(shotData []ShotData) map[string]map[string]interface{} {
 // Main NHL Trend Lens handler for local CSV data
 func NHLTrendLensHandler(c echo.Context) error {
 	// Open and read CSV file
-	file, err := os.Open("data/feb25.csv") // Using specific file as requested
+	file, err := os.Open("data/march1.csv") // Using specific file as requested
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
@@ -530,9 +620,9 @@ func NHLTrendLensHandler(c echo.Context) error {
 			"error": fmt.Sprintf("Error processing shot data: %v", err),
 		})
 	}
-
+	debugShotData(shotData)
 	// Calculate date thresholds for recent data
-	monthAgo := time.Now().AddDate(0, 0, -28) // Filter for last two weeks
+	monthAgo := time.Now().AddDate(0, 0, -30) // Filter for last two weeks
 
 	// Filter shots for recent period (last 2 weeks)
 	var recentShotData []ShotData
@@ -563,7 +653,7 @@ func NHLTrendLensHandler(c echo.Context) error {
 		// Sort shots by some indicator of recency if available
 		// Use approximately 1 month of data (16.7% of season)
 		// Dividing by 6 instead of 4 will give you roughly one month's worth. 6.2 is 16.7 exactly
-recentCount := int(float64(len(shotData)) / 6.2)
+		recentCount := int(float64(len(shotData)) / 6.2)
 		if recentCount > 0 {
 			startIdx := len(shotData) - recentCount
 			recentShotData = shotData[startIdx:]
@@ -632,6 +722,7 @@ recentCount := int(float64(len(shotData)) / 6.2)
 			"goals":          stats.Goals,
 			"emptyNetGoals":  stats.EmptyNetGoals,
 			"shotsPerGame":   roundToOneDecimal(float64(stats.ShotsAttempted) / float64(stats.GamesPlayed)),
+			"shotsOnGoalPerGame": roundToOneDecimal(float64(stats.ShotsOnGoal) / float64(stats.GamesPlayed)),
 			"goalsPerGame":   roundToOneDecimal(float64(stats.Goals) / float64(stats.GamesPlayed)),
 
 			// Shot quality metrics
@@ -675,6 +766,7 @@ recentCount := int(float64(len(shotData)) / 6.2)
 				"recentShotsOnGoal":        recentStats.ShotsOnGoal,
 				"recentGoals":              recentStats.Goals,
 				"recentShotsPerGame":       roundToOneDecimal(float64(recentStats.ShotsAttempted) / float64(recentStats.GamesPlayed)),
+				"recentShotsOnGoalPerGame": roundToOneDecimal(float64(recentStats.ShotsOnGoal) / float64(recentStats.GamesPlayed)),
 				"recentGoalsPerGame":       roundToOneDecimal(float64(recentStats.Goals) / float64(recentStats.GamesPlayed)),
 				"recentShootingPct":        recentMetrics["shootingPct"],
 				"recentXGoals":             roundToOneDecimal(recentStats.TotalXGoals),
