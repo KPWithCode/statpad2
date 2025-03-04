@@ -18,7 +18,7 @@ type ShotsToGoalStats struct {
 }
 
 func ProcessShotsToGoalHandler(c echo.Context) error {
-	file, err := os.Open("data/march1.csv")
+	file, err := os.Open("data/march3.csv")
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}

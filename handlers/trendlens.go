@@ -216,10 +216,18 @@ func calculateAdvancedMetrics(playerStats PlayerStats) map[string]float64 {
 
 	// High danger shooting percentage
 	if playerStats.HighDangerShots > 0 {
-		hdShootingPct := float64(playerStats.HighDangerGoals) / float64(playerStats.HighDangerShots) * 100
-		metrics["highDangerShootingPct"] = roundToOneDecimal(hdShootingPct)
+		hdShotPct := float64(playerStats.HighDangerShots) / float64(playerStats.ShotsAttempted) * 100
+		metrics["highDangerShotPct"] = roundToOneDecimal(hdShotPct)
 	} else {
-		metrics["highDangerShootingPct"] = 0.0
+		metrics["highDangerShotPct"] = 0.0
+	}
+
+	// High danger goal percentage
+	if playerStats.HighDangerGoals > 0 {
+		hdGoalPct := float64(playerStats.HighDangerGoals) / float64(playerStats.HighDangerShots) * 100
+		metrics["highDangerGoalPct"] = roundToOneDecimal(hdGoalPct)
+	} else {
+		metrics["highDangerGoalPct"] = 0.0
 	}
 
 	// Power play shooting percentage
@@ -602,7 +610,7 @@ func aggregateGameStats(shotData []ShotData) map[string]map[string]interface{} {
 // Main NHL Trend Lens handler for local CSV data
 func NHLTrendLensHandler(c echo.Context) error {
 	// Open and read CSV file
-	file, err := os.Open("data/march1.csv") // Using specific file as requested
+	file, err := os.Open("data/march3.csv") // Using specific file as requested
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to open CSV file"})
 	}
@@ -760,8 +768,8 @@ func NHLTrendLensHandler(c echo.Context) error {
 			"rushShotPct":       roundToOneDecimal(float64(stats.RushShots) / float64(stats.ShotsAttempted) * 100),
 			"highDangerShots":   stats.HighDangerShots,
 			"highDangerGoals":   stats.HighDangerGoals,
-			"highDangerShotPct": roundToOneDecimal(float64(stats.HighDangerShots) / float64(stats.ShotsAttempted) * 100),
-			"highDangerGoalPct": metrics["highDangerShootingPct"],
+			"highDangerShotPct": metrics["highDangerShotPct"],
+			"highDangerGoalPct": metrics["highDangerGoalPct"],
 			"powerPlayShots":    stats.PowerPlayShots,
 			"powerPlayGoals":    stats.PowerPlayGoals,
 			"powerPlayShotPct":  metrics["powerPlayShootingPct"],
@@ -795,8 +803,8 @@ func NHLTrendLensHandler(c echo.Context) error {
 				"recentHighDangerShots":    recentStats.HighDangerShots,
 				"recentPowerPlayGoals":     recentStats.PowerPlayGoals,
 				"recentHockeyCardRating":   recentMetrics["hockeyCardRating"],
-				"recentHighDangerShotPct":  roundToOneDecimal(float64(recentStats.HighDangerShots) / float64(recentStats.ShotsAttempted) * 100),
-				"recentHighDangerGoalPct":  recentMetrics["highDangerShootingPct"],
+				"recentHighDangerShotPct":  recentMetrics["highDangerShotPct"],
+				"recentHighDangerGoalPct":  recentMetrics["highDangerGoalPct"],
 			}
 
 			// Add trend indicators (comparing recent to overall performance)
